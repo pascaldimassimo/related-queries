@@ -18,6 +18,10 @@ public class Query
     public Query(final String log)
     {
         String[] parts = log.split("\\t");
+        if (parts.length < 3)
+        {
+            throw new IllegalArgumentException("Invalid query log");
+        }
         this.userID = parts[0];
         this.queryString = parts[1];
         try
@@ -58,25 +62,27 @@ public class Query
         return String.format("Query [userID=%s, queryString=%s, timestamp=%s]", userID, queryString, timestamp);
     }
 
+    /**
+     * TEST CODE!
+     * 
+     * @param args
+     * @throws Exception
+     */
     public static void main(String[] args) throws Exception
     {
         File file = new File("/Users/pascal/data/AOL-user-ct-collection/user-ct-test-collection-01.txt");
         BufferedReader br = new BufferedReader(new FileReader(file));
         String line;
-        int i = 0;
+        boolean skipHeader = true;
         while ((line = br.readLine()) != null)
         {
-            if (i > 0)
+            if (skipHeader)
             {
-                Query query = new Query(line);
-                System.out.println(query);
+                skipHeader = false;
+                continue;
             }
-
-            i++;
-            if (i == 10)
-            {
-                break;
-            }
+            Query query = new Query(line);
+            System.out.println(query);
         }
     }
 }
