@@ -1,0 +1,49 @@
+Hadoop project to find related queries by mining AOL query logs.
+
+The goal of this project is to provide, for a given query, related queries. Those related queries are coming from AOL query logs.
+
+The AOL query logs are grouped by user id. All of the queries issued by a user are listed in chronological order. The query logs span 3 months in 2006.
+
+The general idea to determine what are related queries is to derive them from the users search history. Typically, when a user is looking for information on a 
+specific subject, it will issued queries until the search results are satisfactory for him. For example, a user looking for information about New York, might 
+issue the following queries:
+
+   New York
+   Big Apple
+   Manhattan
+
+By mining a lot of queries, we are able to discover the queries that are often used together. Those queries can then be suggested as related queries.
+
+The first step in the process is to group the queries that are part of the same "search session". The key is to determine when the user is done searching 
+information on the same subject. The simple algorithm that was implemented in this project is time based. All the queries ran in a limited time frame can 
+be grouped together in the same "search session" (called transactions). All the queries ran during the same transaction can be viewed as being related to 
+each other.  The algorithm implemented to segment queries transaction was taken from the paper "Mining Related Queries from Web Search Engine Query 
+Logs Using an Improved Association Rule Mining Model". The algorithm was implemented as a Hadoop MR job. It takes an HDFS folder containing AOL 
+query logs. The job will output the list of transactions.  
+
+   hadoop pascaldimassimo.TransactionSplitter aol transactions
+   
+We can now mined those transactions to find queries that are frequently used together. A common method to find those kind of relations is association rule 
+learning. To apply the method. there is a couple of algorithms that can be used, like Apriori. Mahout implements the FPGrowth Algorithm, so I've decided to use
+ it since it runs on Hadoop. The FPGrowth Algorithm is basically a two steps process. First, a tree is built from the most frequent items in the transactions. 
+ Then, the tree is browsed iteratively to find associations patterns amongst items. Here is how I used it:      
+   
+   mahout fpg -i transactions -o patterns -method mapreduce -s 5 -g 10000
+   
+The '-s 5' parameter allows to keep only the items that are at least present 5 times in all transactions. Note that I had to use mahout trunk instead of 
+mahout-0.5 because of this issue [MAHOUT-632]. When this is done, we now have, for each retained items, the list of items that are often used with 
+it. So we have a list of queries with their related queries!
+
+Next, I've decided to store all of those queries with their related queries in a Solr index. This allows to do full text search on the queries. We could use it to 
+get the related queries of all the queries containing the initial query. Per example, if we ask for the related queries of 'ebay', we are able to also get the related 
+queries of 'ebay canada'.  I've also indexed the related queries in order to build facets on it. To import the data into Solr, I've built a simple program that 
+read the Hadoop sequence file produced by Mahout into a Solr index:
+
+mahout pascaldimassimo.PatternsReader patterns/frequentpatterns/part-r-00000 localhost 8983 relatedqueries
+
+Note that I had to copy apache-solr-solrj-3.3.0.jar, guava-r09.jar and mahout-core-0.6-SNAPSHOT.jar into HADOOP_HOME/lib before running that command.
+
+At the end, I have an index of ~180000 queries. Unfortunately, I've noticed that a lot of queries does not have any related queries. This is the long tail effect!
+But by doing a faceted search on the related fields, we have a decent list of related queries to suggest for an input query. Another option is to return the 
+queries that match the input queries as related queries, but that does not leverage the related queries that we've put together.  
+
