@@ -57,7 +57,7 @@ public class PatternsReader
         doc.setField("query", key.toString());
         for (String related : set)
         {
-            doc.setField("related", related);
+            doc.addField("related", related);
         }
         return doc;
     }
